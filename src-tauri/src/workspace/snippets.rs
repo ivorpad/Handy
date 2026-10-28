@@ -99,7 +99,7 @@ pub fn delete_snippet(app: AppHandle, id: String, expected_revision: i64) -> Res
     }
 }
 
-fn word_char(c: char) -> bool {
+pub(super) fn word_char(c: char) -> bool {
     static MARK: once_cell::sync::Lazy<Regex> = once_cell::sync::Lazy::new(|| {
         Regex::new(r"^\p{M}$").expect("constant Unicode mark pattern")
     });

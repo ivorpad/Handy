@@ -10,6 +10,7 @@ pub mod capture_windows;
 pub mod command_classifier;
 pub mod connectors;
 pub mod context;
+pub mod corrections;
 pub mod generation;
 pub mod learning;
 pub mod meeting_capture;
