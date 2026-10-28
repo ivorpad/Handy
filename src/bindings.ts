@@ -1072,6 +1072,19 @@ async reviewBackgroundLearning(id: string, expectedRevision: number) : Promise<R
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Adds a dictionary word directly. The word becomes vocabulary, and each
+ * `heard_as` spelling becomes an exact replacement for output too far from
+ * the word for fuzzy correction, such as "Trimarchi" for "Omarchy".
+ */
+async addDictionaryWord(word: string, heardAs: string[]) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("add_dictionary_word", { word, heardAs }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async listWritingProfiles() : Promise<Result<WritingProfile[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_writing_profiles") };

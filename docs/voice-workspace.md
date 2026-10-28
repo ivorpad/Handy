@@ -2,15 +2,15 @@
 
 Open **Workspace** in Handy's sidebar. This guide covers macOS.
 
-| Section               | Use                                                                                                                                                                                              |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Snippets & vocabulary | Save spoken triggers with exact plain text. Review corrections from history, or enable local background spelling learning with review and undo.                                                  |
-| Writing profiles      | Assign cleanup prompts to apps and domains. Choose Automatic or a saved manual override. Add writing preferences scoped to an app, domain or language.                                           |
-| Voice commands        | Select text in another app, press the configured shortcut and speak an instruction. Review the result before replacing the selection. You can also capture a selection and type the instruction. |
-| Notes                 | Dictate into the editor, save drafts, restore revisions, import/export Markdown, apply saved prompts and ask questions about the note.                                                           |
-| Meetings              | Record microphone or system audio, or import a WAV. Transcribe locally, identify speakers, edit the timed transcript, then generate notes and review suggested action items.                     |
-| Search                | Search saved dictations, notes and connected documents. Ask a question to generate an answer with references to matching sources.                                                                |
-| Connections           | Import a local text file, a folder or an ICS calendar. Disconnect removes the cached documents.                                                                                                  |
+| Section               | Use                                                                                                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Snippets & vocabulary | Add dictionary words and the spellings a model writes instead. Save spoken triggers with exact plain text. Review corrections from history, or enable local background spelling learning with review and undo. |
+| Writing profiles      | Assign cleanup prompts to apps and domains. Choose Automatic or a saved manual override. Add writing preferences scoped to an app, domain or language.                                                         |
+| Voice commands        | Select text in another app, press the configured shortcut and speak an instruction. Review the result before replacing the selection. You can also capture a selection and type the instruction.               |
+| Notes                 | Dictate into the editor, save drafts, restore revisions, import/export Markdown, apply saved prompts and ask questions about the note.                                                                         |
+| Meetings              | Record microphone or system audio, or import a WAV. Transcribe locally, identify speakers, edit the timed transcript, then generate notes and review suggested action items.                                   |
+| Search                | Search saved dictations, notes and connected documents. Ask a question to generate an answer with references to matching sources.                                                                              |
+| Connections           | Import a local text file, a folder or an ICS calendar. Disconnect removes the cached documents.                                                                                                                |
 
 Generation stays on your device. In **Post Processing**, choose Apple
 Intelligence on a supported Mac, or **Custom** with a model server at
@@ -21,6 +21,13 @@ proxies and do not follow redirects. A local server remains responsible for its
 own configuration. Plain snippets, vocabulary, notes and search need no model
 server. Old remote connections are disabled; their cached documents remain
 available until you disconnect them.
+
+A **Dictionary** word reaches the model only when the model accepts a word
+list, as Whisper does. Parakeet, Nemotron and other models without one get
+close spellings corrected after transcription: “Omarchi” becomes “Omarchy”,
+“Trimarchi” stays. Add such a spelling under **Heard as** and Handy replaces
+it, as whole words, with any model. Words in **Advanced → Custom Words** are
+used the same way.
 
 Profiles are selected when dictation starts. Domain rules take precedence over
 app rules, followed by the default profile. A manual override takes precedence

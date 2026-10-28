@@ -15,7 +15,8 @@ use crate::utils::{
     self, show_processing_overlay, show_recording_overlay, show_transcribing_overlay,
 };
 use crate::workspace::{
-    automation, command_classifier, context, learning, personalization, profiles, voice_commands,
+    automation, command_classifier, context, learning, personalization, profiles, snippets,
+    voice_commands,
 };
 use crate::TranscriptionCoordinator;
 use log::{debug, error, warn};
@@ -550,7 +551,7 @@ async fn process_transcription_snapshot(
             warn!("Confirmed correction lookup failed: {}", error);
             transcription.to_owned()
         });
-    let protected = personalization::protect_snippets(app, &corrected);
+    let protected = snippets::protect_snippets(app, &corrected);
     let mut final_text = protected
         .as_ref()
         .map(|p| p.text.clone())
@@ -578,11 +579,10 @@ async fn process_transcription_snapshot(
     }
 
     if let Ok(protected) = protected {
-        final_text =
-            personalization::restore_snippets(&protected, &final_text).unwrap_or_else(|error| {
-                warn!("Cleanup changed literal snippet markers: {}", error);
-                personalization::fallback_expansion(&protected)
-            });
+        final_text = snippets::restore_snippets(&protected, &final_text).unwrap_or_else(|error| {
+            warn!("Cleanup changed literal snippet markers: {}", error);
+            snippets::fallback_expansion(&protected)
+        });
     }
     if post_process_prompt.is_some() || final_text != transcription {
         post_processed_text = Some(final_text.clone());

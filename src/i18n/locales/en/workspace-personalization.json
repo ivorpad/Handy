@@ -1,7 +1,17 @@
 {
   "title": "Personalization",
+  "dictionary": "Dictionary",
+  "dictionaryHelp": "Names and terms Handy should spell your way. Whisper and other models that accept a word list use them while transcribing. Models that can't, such as Parakeet and Nemotron, get close spellings fixed afterwards, like “Omarchi” to “Omarchy”. Words in Advanced → Custom Words count too.",
+  "dictionaryHeardAs": "A spelling far from the word, like “Trimarchi”, is left alone. Add it under Heard as and Handy replaces it with the word, whatever model you use.",
+  "dictionaryWord": "Word",
+  "dictionaryWordPlaceholder": "Omarchy",
+  "heardAs": "Heard as (optional)",
+  "heardAsPlaceholder": "Trimarchi, Tria Marchi",
+  "heardAsHelp": "What the model wrote instead, separated by commas. Each spelling is replaced only where it appears as whole words.",
+  "addWord": "Add to dictionary",
+  "emptyDictionary": "No words added here yet.",
   "backgroundLearning": "Learn vocabulary from corrections in the background",
-  "backgroundHelp": "Off by default. For up to one minute after dictation, Handy watches only the nonsecure field where its text was inserted. Small spelling corrections become local vocabulary hints. Nothing is sent to an AI provider. Observation stops when you change fields, start another recording, or turn this off. Review or undo learned words below.",
+  "backgroundHelp": "Off by default. For up to one minute after dictation, Handy watches only the nonsecure field where its text was inserted. Small spelling corrections become local vocabulary hints. Nothing is sent to an AI provider. Observation stops when you change fields, start another recording, or turn this off. Learned words appear in the dictionary above, where you can review or undo them.",
   "backgroundPending": "Learned locally from your edit · awaiting review",
   "backgroundReviewed": "Learned locally · reviewed",
   "reviewLearning": "Mark reviewed",
@@ -19,7 +29,7 @@
   "learning": "Learn from a correction",
   "word": "Correct vocabulary or phrase",
   "wrong": "Phrase to replace",
-  "learningHelp": "Edit a saved transcript, review the changed phrase, then confirm a vocabulary hint or an exact replacement. The original history stays unchanged. Only confirmed learning affects future dictation.",
+  "learningHelp": "Edit a saved transcript, review the changed phrase, then confirm a vocabulary hint or an exact replacement. The original history stays unchanged. Only confirmed learning affects future dictation. Confirmed entries appear in the dictionary.",
   "history": "Saved transcript",
   "chooseHistory": "Choose a recent transcript",
   "original": "Original text",
@@ -28,6 +38,5 @@
   "candidate": "Proposed correction",
   "confirmWord": "Remember vocabulary",
   "confirmReplacement": "Always replace this phrase",
-  "undo": "Undo last learning",
-  "emptyLearning": "No confirmed vocabulary or replacements yet."
+  "undo": "Undo last learning"
 }

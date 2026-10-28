@@ -21,5 +21,6 @@ pub mod notes;
 pub mod personalization;
 pub mod profiles;
 pub mod search;
+pub mod snippets;
 pub mod store;
 pub mod voice_commands;
