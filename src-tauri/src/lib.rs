@@ -1019,6 +1019,9 @@ pub fn run(cli_args: CliArgs) {
                     .min_inner_size(utils::MAIN_WINDOW_SIZE.0, utils::MAIN_WINDOW_SIZE.1)
                     .resizable(true)
                     .maximizable(true)
+                    // macOS: without this, a click on the inactive window only
+                    // activates it, so a text field needs a second click.
+                    .accept_first_mouse(true)
                     .visible(false);
 
             if let Some(data_dir) = portable::data_dir() {
