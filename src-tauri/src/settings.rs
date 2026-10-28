@@ -575,8 +575,10 @@ fn default_autostart_enabled() -> bool {
     false
 }
 
+/// Off because this fork publishes no update feed: `plugins.updater.endpoints`
+/// in `tauri.conf.json` is empty.
 fn default_update_checks_enabled() -> bool {
-    true
+    false
 }
 
 fn default_show_whats_new_on_update() -> bool {
