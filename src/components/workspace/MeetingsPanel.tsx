@@ -385,7 +385,7 @@ export default function MeetingsPanel() {
                 </h4>
                 <p className="text-sm">
                   {t("workspace.meetings.timelineExplanation", {
-                    count: meeting.timeline.max_speakers,
+                    count: meeting.timeline.max_speakers ?? undefined,
                   })}
                 </p>
                 <p className="text-xs">{meeting.timeline.model}</p>
