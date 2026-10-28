@@ -67,6 +67,7 @@ impl Track {
     }
 }
 
+#[cfg(any(target_os = "windows", target_os = "linux"))]
 pub fn manifest(directory: &Path, clock: &str) -> Result<(), String> {
     let temporary = directory.join("capture-timeline.json.tmp");
     if directory.join("capture-timeline.json").exists() {
