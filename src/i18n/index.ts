@@ -24,6 +24,18 @@ for (const [path, module] of Object.entries(localeModules)) {
   }
 }
 
+const workspaceModules = import.meta.glob<{ default: Record<string, unknown> }>(
+  "./locales/*/workspace-*.json",
+  { eager: true },
+);
+for (const [path, module] of Object.entries(workspaceModules)) {
+  const match = path.match(/\.\/locales\/([^/]+)\/workspace-([^.]+)\.json/);
+  if (!match || !resources[match[1]]) continue;
+  const translation = resources[match[1]].translation;
+  const workspace = (translation.workspace ??= {}) as Record<string, unknown>;
+  workspace[match[2]] = module.default;
+}
+
 // Build supported languages list from discovered locales + metadata
 export const SUPPORTED_LANGUAGES = Object.keys(resources)
   .map((code) => {

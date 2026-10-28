@@ -39,11 +39,7 @@ import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
 // flow is first-run onboarding; the rest are single screens for returning users.
 type OnboardingStep =
-  | "flow"
-  | "permissions"
-  | "migration"
-  | "replaceModel"
-  | "done";
+  "flow" | "permissions" | "migration" | "replaceModel" | "done";
 
 const renderSettingsContent = (
   section: SidebarSection,
@@ -101,6 +97,20 @@ function App() {
 
   useEffect(() => {
     checkOnboardingStatus();
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<string>(
+      "workspace-open-commands",
+      ({ payload }) => {
+        sessionStorage.setItem("workspace-section", "commands");
+        sessionStorage.setItem("workspace-command-id", payload);
+        setCurrentSection("workspace");
+      },
+    );
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
   }, []);
 
   // Initialize RTL direction when language changes

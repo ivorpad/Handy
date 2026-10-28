@@ -100,6 +100,14 @@ fn native_windows_machine() -> Option<u16> {
 /// Centralized cancellation function that can be called from anywhere in the app.
 /// Handles cancelling both recording and transcription operations and updates UI state.
 pub fn cancel_current_operation(app: &AppHandle) {
+    if crate::workspace::meeting_capture::with_dictation_cancellation(|| cancel_dictation(app))
+        .is_none()
+    {
+        info!("Saved-audio transcription owns the engine; no dictation to cancel");
+    }
+}
+
+fn cancel_dictation(app: &AppHandle) {
     info!("Initiating operation cancellation...");
 
     // Unregister the cancel shortcut asynchronously
@@ -109,6 +117,7 @@ pub fn cancel_current_operation(app: &AppHandle) {
     let audio_manager = app.state::<Arc<AudioRecordingManager>>();
     let recording_was_active = audio_manager.is_recording();
     audio_manager.cancel_recording();
+    crate::actions::cancel_workspace_recording(app);
 
     // Abandon any live streaming transcription, and stop a transcription
     // already in progress

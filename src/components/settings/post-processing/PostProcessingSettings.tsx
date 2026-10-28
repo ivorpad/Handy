@@ -37,7 +37,11 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
       >
         <div className="flex items-center gap-2">
           <ProviderSelect
-            options={state.providerOptions}
+            options={state.providerOptions.filter(
+              (option) =>
+                option.value === "custom" ||
+                option.value === "apple_intelligence",
+            )}
             value={state.selectedProviderId}
             onChange={state.handleProviderSelect}
           />
@@ -50,7 +54,7 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
             {t("settings.postProcessing.api.appleIntelligence.unavailable")}
           </Alert>
         ) : null
-      ) : (
+      ) : state.isCustomProvider ? (
         <>
           {state.isCustomProvider && (
             <SettingContainer
@@ -132,9 +136,9 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
             </div>
           </SettingContainer>
         </>
-      )}
+      ) : null}
 
-      {!state.isAppleProvider && (
+      {state.isCustomProvider && (
         <SettingContainer
           title={t("settings.postProcessing.api.model.title")}
           description={
@@ -467,6 +471,9 @@ export const PostProcessingSettings: React.FC = () => {
 
   return (
     <div className="max-w-3xl w-full mx-auto space-y-6">
+      <Alert variant="info" contained>
+        {t("workspace.shell.localGeneration")}
+      </Alert>
       <SettingsGroup title={t("settings.postProcessing.hotkey.title")}>
         <ShortcutInput
           shortcutId="transcribe_with_post_process"

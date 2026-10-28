@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use transcribe_cpp::{
-    Backend, Capabilities, DeviceType, RunOptions, StreamOptions, StreamText, StreamUpdate,
-    Transcript,
+    Backend, Capabilities, DeviceType, RunOptions, SpeakerSegment, StreamOptions, StreamText,
+    StreamUpdate, Transcript,
 };
 
 /// Refuse frames larger than this: a garbage length must not turn into a
@@ -37,6 +37,11 @@ pub enum Request {
     /// Followed by the PCM to transcribe.
     Run {
         options: RunOptions,
+    },
+    /// A dedicated, one-shot diarization worker. Never replaces an ASR session.
+    Diarize {
+        path: PathBuf,
+        inspect_only: bool,
     },
     StreamBegin {
         run: RunOptions,
@@ -73,6 +78,7 @@ pub enum Response {
     },
     Loaded(LoadedInfo),
     Transcript(Transcript),
+    Diarized(DiarizationOutput),
     Fed {
         update: StreamUpdate,
         /// Present only when the committed or tentative text changed.
@@ -85,6 +91,15 @@ pub enum Response {
     },
     Ok,
     Error(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiarizationOutput {
+    pub segments: Vec<SpeakerSegment>,
+    pub max_speakers: i32,
+    pub arch: String,
+    pub variant: String,
+    pub backend: String,
 }
 
 /// Serializable mirror of `transcribe_cpp::Device` (which holds a
@@ -266,6 +281,59 @@ mod tests {
         let (req, got): (Request, Vec<f32>) = read_message(&mut buf.as_slice()).unwrap().unwrap();
         assert!(matches!(req, Request::Run { .. }));
         assert_eq!(got, pcm);
+    }
+
+    #[test]
+    fn diarization_round_trip_preserves_turns_and_missing_confidence() {
+        let mut request = Vec::new();
+        write_message(
+            &mut request,
+            &Request::Diarize {
+                path: PathBuf::from("synthetic-speakers.gguf"),
+                inspect_only: false,
+            },
+            Some(&[0.25, -0.25]),
+        )
+        .unwrap();
+        let (request, pcm) = read_message::<Request>(&mut request.as_slice())
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            request,
+            Request::Diarize {
+                inspect_only: false,
+                ..
+            }
+        ));
+        assert_eq!(pcm, [0.25, -0.25]);
+        let mut response = Vec::new();
+        write_message(
+            &mut response,
+            &Response::Diarized(DiarizationOutput {
+                segments: vec![SpeakerSegment {
+                    t0_ms: 100,
+                    t1_ms: 500,
+                    speaker_id: 2,
+                    p: f32::NAN,
+                }],
+                max_speakers: 4,
+                arch: "sortformer".into(),
+                variant: "synthetic".into(),
+                backend: "cpu".into(),
+            }),
+            None,
+        )
+        .unwrap();
+        let (response, _) = read_message::<Response>(&mut response.as_slice())
+            .unwrap()
+            .unwrap();
+        let Response::Diarized(output) = response else {
+            panic!("wrong response");
+        };
+        assert_eq!(output.segments[0].speaker_id, 2);
+        assert_eq!(output.segments[0].t0_ms, 100);
+        assert!(output.segments[0].p.is_nan());
+        assert_eq!(output.max_speakers, 4);
     }
 
     #[test]

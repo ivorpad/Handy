@@ -6,7 +6,8 @@
 //! the worker exits the moment the parent goes away, even if hung.
 
 use super::protocol::{
-    read_message, write_message, DeviceInfo, DeviceSelector, LoadedInfo, Request, Response,
+    read_message, write_message, DeviceInfo, DeviceSelector, DiarizationOutput, LoadedInfo,
+    Request, Response,
 };
 use super::{CPU_ONLY_FLAG, LOG_LEVEL_ENV};
 use log::{debug, error, warn, LevelFilter, Log, Metadata, Record};
@@ -16,7 +17,8 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
 use transcribe_cpp::{
-    Backend, BackendMask, DeviceType, Feature, Model, ModelOptions, Session, Stream,
+    Backend, BackendMask, DeviceType, DiarizeOptions, Feature, Model, ModelOptions, Role, Session,
+    Stream,
 };
 
 /// Prefix on worker log lines so the parent can tell them apart from raw
@@ -82,7 +84,7 @@ pub fn run() -> i32 {
     let mut session: Option<(Session, LoadedInfo)> = None;
 
     while let Ok(Incoming { request, pcm }) = requests.recv() {
-        let finished_run = matches!(request, Request::Run { .. });
+        let finished_run = matches!(request, Request::Run { .. } | Request::Diarize { .. });
         let response = match request {
             Request::Hello { list_devices } => match &init_error {
                 Some(message) => Response::Error(message.clone()),
@@ -122,6 +124,18 @@ pub fn run() -> i32 {
                 }
                 None => not_loaded(),
             },
+            Request::Diarize { path, inspect_only } => {
+                // This request is used only by its own short-lived worker.
+                // Reject reuse rather than freeing an unrelated ASR session.
+                if session.is_some() {
+                    Response::Error("Diarization requires a dedicated worker".into())
+                } else {
+                    match diarize(&path, &pcm, inspect_only) {
+                        Ok(output) => Response::Diarized(output),
+                        Err(error) => Response::Error(error),
+                    }
+                }
+            }
             Request::StreamBegin { run, stream } => match session.as_mut() {
                 Some((session, info)) => match session.stream(&run, &stream) {
                     Ok(stream) => {
@@ -250,6 +264,43 @@ fn serve_stream(
 
 fn not_loaded() -> Response {
     Response::Error("no model loaded".to_string())
+}
+
+fn diarize(path: &Path, pcm: &[f32], inspect_only: bool) -> Result<DiarizationOutput, String> {
+    if !inspect_only && (pcm.is_empty() || pcm.iter().any(|sample| !sample.is_finite())) {
+        return Err("Diarization needs nonempty, finite 16 kHz mono PCM audio".into());
+    }
+    let model = Model::load_with(
+        path,
+        &ModelOptions {
+            backend: Backend::Cpu,
+            device: None,
+        },
+    )
+    .map_err(|error| format!("Cannot load local speaker model: {error}"))?;
+    if !model.roles().contains(Role::Diarize) {
+        return Err("This model cannot identify speakers. Select a GGUF model with the DIARIZE role, such as Sortformer.".into());
+    }
+    let info = model.diarize_info().map_err(|error| error.to_string())?;
+    if info.sample_rate != 16000 || info.max_speakers < 1 {
+        return Err("The speaker model does not support 16 kHz meeting audio".into());
+    }
+    let segments = if inspect_only {
+        Vec::new()
+    } else {
+        model
+            .diarize_session()
+            .map_err(|error| error.to_string())?
+            .run(pcm, &DiarizeOptions::default())
+            .map_err(|error| format!("Local speaker identification failed: {error}"))?
+    };
+    Ok(DiarizationOutput {
+        segments,
+        max_speakers: info.max_speakers,
+        arch: model.arch(),
+        variant: model.variant(),
+        backend: model.backend(),
+    })
 }
 
 fn load(

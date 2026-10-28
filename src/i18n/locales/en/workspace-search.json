@@ -1,0 +1,10 @@
+{
+  "title": "Search and ask",
+  "description": "Search local dictation history, workspace notes and imported connections. Results include up to eight source excerpts.",
+  "query": "Search or question",
+  "search": "Search locally",
+  "ask": "Ask configured model",
+  "disclosure": "Local search stays on this device. Asking sends your question and up to 20,000 characters of source excerpts to your configured Post Processing provider. Answers include the selected source IDs; inspect the excerpts to check claims.",
+  "working": "Searching…",
+  "empty": "No matching local sources. Try words used in your notes or dictation."
+}

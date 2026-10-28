@@ -1,0 +1,12 @@
+{
+  "title": "Workspace",
+  "navigation": "Workspace sections",
+  "personalization": "Snippets & vocabulary",
+  "profiles": "Writing profiles",
+  "commands": "Voice commands",
+  "notes": "Notes",
+  "meetings": "Meetings",
+  "search": "Search",
+  "connectors": "Connections",
+  "localGeneration": "Generation stays on this device. Choose Apple Intelligence or Custom with a local model server at localhost, 127.0.0.1 or ::1. Remote endpoints are disabled."
+}

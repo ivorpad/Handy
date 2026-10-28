@@ -1,0 +1,32 @@
+{
+  "title": "Edit selected text",
+  "description": "Give an instruction about text in another app. Review the result before replacing the original selection.",
+  "automaticCommands": "Recognize edit commands during ordinary dictation",
+  "automaticHelp": "Off by default. When enabled, Handy captures the current nonsecure selection and, where needed, a bounded field snapshot for local target checks. Only selected text is used for command generation. Explicit commands such as ‘make this shorter’ or ‘translate the selection into Spanish’ create a preview. You still confirm replacement.",
+  "automaticLimits": "Recognition uses a local English grammar, with no cloud classifier. Quotes, narrative speech, unsupported languages, and uncertain requests remain dictation. Preview generation also requires a local provider. Use the dedicated shortcut for other instructions.",
+  "voiceHelp": "Select text in the destination app, use the shortcut, and speak an instruction such as ‘make this shorter’. Stop recording to generate a preview. Nothing is pasted automatically.",
+  "capture": "Capture selection in 3 seconds",
+  "captureHelp": "Switch to the destination app and select the text now.",
+  "original": "Original selection",
+  "copyOriginal": "Copy original selection",
+  "instruction": "Instruction",
+  "sourceTranscript": "Recognized speech",
+  "copyInstruction": "Copy instruction",
+  "generate": "Generate preview",
+  "cancel": "Discard command",
+  "preview": "Replacement preview",
+  "replace": "Replace original selection",
+  "replaceHelp": "Replacement checks the original app, field, and selection. If they changed or the target expired, capture the text again. Windows and Linux support plain-text fields only; rich formatting is not retained. This does not send messages or submit forms.",
+  "copy": "Copy preview",
+  "history": "Command history",
+  "empty": "No commands yet. Capture a selection or use the voice shortcut.",
+  "status": {
+    "captured": "Selection captured",
+    "generating": "Generating preview",
+    "ready": "Ready for review",
+    "failed": "Generation failed",
+    "applied": "Replacement applied",
+    "cancelled": "Discarded",
+    "expired": "Selection expired"
+  }
+}

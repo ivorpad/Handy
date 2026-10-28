@@ -11,11 +11,12 @@ use super::chunked::ChunkedDecode;
 use super::policy::LiveDecode;
 use super::{
     effective_language_for_model, emit_stream_text, join_chunks, lock_perf, run_setup,
-    PreviewScript, RunOutcome, RunSetup, StreamFinalizeReply, StreamPerf, TranscriptionManager,
+    transcription_settings, PreviewScript, RunOutcome, RunSetup, StreamFinalizeReply, StreamPerf,
+    TranscriptionManager,
 };
 use crate::audio_toolkit::OutputLanguageEvidence;
 use crate::engine_supervisor::{EngineError, LoadedInfo, StreamHandle, StreamProgress};
-use crate::settings::{get_settings, AppSettings};
+use crate::settings::AppSettings;
 
 /// One recording's live decode, with the run setup its result finishes with.
 pub(super) struct LiveSession<'a> {
@@ -46,7 +47,7 @@ impl<'a> LiveSession<'a> {
         }
         // The same run setup as the batch path: task + language gated
         // against what the model actually advertises.
-        let settings = get_settings(&tm.app_handle);
+        let settings = transcription_settings(&tm.app_handle);
         let effective_language =
             effective_language_for_model(&settings, tm.model_manager.as_ref(), model_id);
         let setup = run_setup(info, &settings, &effective_language);

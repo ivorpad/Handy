@@ -969,6 +969,16 @@ pub fn get_default_settings() -> AppSettings {
         },
     );
 
+    #[cfg(target_os = "macos")]
+    let default_command_shortcut = "control+option+space";
+    #[cfg(not(target_os = "macos"))]
+    let default_command_shortcut = "ctrl+alt+space";
+    bindings.insert("voice_command".to_string(), ShortcutBinding {
+        id: "voice_command".to_string(), name: "Edit selected text".to_string(),
+        description: "Speak an instruction for selected text, then review the preview before replacing it.".to_string(),
+        default_binding: default_command_shortcut.to_string(), current_binding: default_command_shortcut.to_string(),
+    });
+
     AppSettings {
         settings_schema_version: default_settings_schema_version(),
         bindings,

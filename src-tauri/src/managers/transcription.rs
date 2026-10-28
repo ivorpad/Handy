@@ -314,7 +314,7 @@ impl TranscriptionManager {
                     let is_recording = app_handle_cloned
                         .try_state::<Arc<AudioRecordingManager>>()
                         .is_some_and(|a| a.is_recording());
-                    if is_recording {
+                    if is_recording || crate::workspace::meeting_capture::is_processing() {
                         manager_cloned.touch_activity();
                         continue;
                     }
@@ -327,26 +327,30 @@ impl TranscriptionManager {
 
                         if idle_ms > limit_ms {
                             // idle -> unload
-                            if manager_cloned.is_model_loaded() {
-                                let unload_start = std::time::Instant::now();
-                                info!(
-                                    "Model idle for {}s (limit: {}s), unloading",
-                                    idle_ms / 1000,
-                                    limit_seconds
-                                );
-                                match manager_cloned.unload_model() {
-                                    Ok(()) => {
-                                        let unload_duration = unload_start.elapsed();
+                            let _ = crate::workspace::meeting_capture::with_dictation_cancellation(
+                                || {
+                                    if manager_cloned.is_model_loaded() {
+                                        let unload_start = std::time::Instant::now();
                                         info!(
-                                            "Model unloaded due to inactivity (took {}ms)",
-                                            unload_duration.as_millis()
+                                            "Model idle for {}s (limit: {}s), unloading",
+                                            idle_ms / 1000,
+                                            limit_seconds
                                         );
+                                        match manager_cloned.unload_model() {
+                                            Ok(()) => {
+                                                let unload_duration = unload_start.elapsed();
+                                                info!(
+                                                    "Model unloaded due to inactivity (took {}ms)",
+                                                    unload_duration.as_millis()
+                                                );
+                                            }
+                                            Err(e) => {
+                                                error!("Failed to unload idle model: {}", e);
+                                            }
+                                        }
                                     }
-                                    Err(e) => {
-                                        error!("Failed to unload idle model: {}", e);
-                                    }
-                                }
-                            }
+                                },
+                            );
                         }
                     }
                 }
@@ -924,7 +928,7 @@ impl TranscriptionManager {
             Some(outcome) => outcome,
             None => self.decode_batch(audio)?,
         };
-        let settings = get_settings(&self.app_handle);
+        let settings = transcription_settings(&self.app_handle);
         let final_result = finish_text(outcome, &settings);
 
         let translation_note = if settings.translate_to_english {
@@ -980,8 +984,8 @@ impl TranscriptionManager {
             }
         }
 
-        // Get current settings for configuration
-        let settings = get_settings(&self.app_handle);
+        // Get current settings and confirmed learning for configuration.
+        let settings = transcription_settings(&self.app_handle);
 
         // Validate selected language against the model's supported languages.
         // If the language isn't supported, fall back to "auto" to prevent errors.
@@ -1413,9 +1417,35 @@ fn with_model_detected_language(
     }
 }
 
+/// Merge confirmed local learning into this run without rewriting settings.
+fn transcription_settings(app: &AppHandle) -> AppSettings {
+    let mut settings = get_settings(app);
+    match crate::workspace::personalization::learned_vocabulary(app) {
+        Ok(learned) => settings.custom_words = merge_vocabulary(&settings.custom_words, &learned),
+        Err(_) => warn!("Confirmed vocabulary could not be loaded; using configured custom words"),
+    }
+    settings
+}
+
+fn merge_vocabulary(configured: &[String], learned: &[String]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    configured
+        .iter()
+        .chain(learned)
+        .filter(|word| {
+            let normalized = word
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .to_lowercase();
+            !normalized.is_empty() && seen.insert(normalized)
+        })
+        .cloned()
+        .collect()
+}
+
 /// Custom words for transcribe-cpp's `vocabulary` slot, in priority order.
-/// Empty for models without Feature::Vocabulary, which would warn on every run
-/// and rely on fuzzy correction instead.
+/// Models without vocabulary support rely on fuzzy correction instead.
 fn vocabulary_for_model(supports_vocabulary: bool, custom_words: &[String]) -> Vec<String> {
     if supports_vocabulary {
         custom_words.to_vec()
@@ -2193,6 +2223,27 @@ mod tests {
             &supported,
         );
         assert_eq!(corrected, "i use Handy every day");
+    }
+}
+
+#[cfg(test)]
+mod learned_vocabulary_tests {
+    use super::*;
+    #[test]
+    fn configured_words_keep_priority_and_learning_deduplicates_unicode() {
+        let configured = vec!["Handy".into(), "Café Team".into()];
+        let learned = vec![
+            "handy".into(),
+            "CAFÉ  TEAM".into(),
+            "NewName".into(),
+            "newname".into(),
+            " ".into(),
+        ];
+        let merged = merge_vocabulary(&configured, &learned);
+        assert_eq!(merged, vec!["Handy", "Café Team", "NewName"]);
+        assert_eq!(configured, vec!["Handy", "Café Team"]);
+        assert_eq!(vocabulary_for_model(true, &merged), merged);
+        assert!(vocabulary_for_model(false, &merged).is_empty());
     }
 }
 

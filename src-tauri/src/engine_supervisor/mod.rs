@@ -9,10 +9,12 @@
 //! unloads models, runs and streams transcriptions, cancels them, and
 //! recovers from crashes and hangs (retrying in a CPU-only worker when the
 //! GPU was at fault), so the rest of the app never sees processes, restarts
-//! or fallback. At most one worker holds a model at a time, and it lives
+//! or fallback. At most one ASR worker holds a model at a time, and it lives
 //! exactly as long as that model, so unloading returns all of its CPU and GPU
 //! memory to the OS. Listing compute devices may briefly run a second,
-//! model-less worker.
+//! model-less worker. Offline speaker identification runs a separate,
+//! short-lived CPU-only worker through [`diarize_local`]; it never replaces
+//! the ASR model or shares its cancellation state.
 //!
 //! A CPU-only worker ([`CPU_ONLY_FLAG`]) restricts transcribe.cpp to its CPU
 //! backends before any are registered, so no GPU driver code runs in it at
@@ -27,10 +29,10 @@ mod protocol;
 mod supervisor;
 mod worker;
 
-pub use protocol::{DeviceInfo, DeviceSelector, LoadedInfo};
+pub use protocol::{DeviceInfo, DeviceSelector, DiarizationOutput, LoadedInfo};
 pub use supervisor::{
-    CancelMark, EngineError, EngineSupervisor, Finalized, LoadSpec, StreamHandle, StreamProgress,
-    Unloading,
+    diarize_local, CancelMark, EngineError, EngineSupervisor, Finalized, LoadSpec, StreamHandle,
+    StreamProgress, Unloading,
 };
 
 /// Hidden first argument that turns the executable into a worker.

@@ -1,6 +1,15 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Cog, FlaskConical, History, Info, Sparkles, Cpu } from "lucide-react";
+import {
+  Cog,
+  FlaskConical,
+  History,
+  Info,
+  Sparkles,
+  Cpu,
+  NotebookPen,
+} from "lucide-react";
+import WorkspacePanel from "./workspace/WorkspacePanel";
 import HandyTextLogo from "./icons/HandyTextLogo";
 import HandyHand from "./icons/HandyHand";
 import { useSettings } from "../hooks/useSettings";
@@ -48,6 +57,12 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.models",
     icon: Cpu,
     component: ModelsSettings,
+    enabled: () => true,
+  },
+  workspace: {
+    labelKey: "workspace.shell.title",
+    icon: NotebookPen,
+    component: WorkspacePanel,
     enabled: () => true,
   },
   advanced: {

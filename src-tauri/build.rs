@@ -2,6 +2,9 @@ fn main() {
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     build_apple_intelligence_bridge();
 
+    #[cfg(target_os = "macos")]
+    build_meeting_capture_bridge();
+
     generate_tray_translations();
 
     // Linux ships transcribe-cpp as a shared libtranscribe + loadable ggml
@@ -37,6 +40,66 @@ fn main() {
     stage_vc_runtime_dlls();
 
     tauri_build::build()
+}
+
+#[cfg(target_os = "macos")]
+fn build_meeting_capture_bridge() {
+    use std::{env, path::PathBuf, process::Command};
+    fn xcrun(arguments: &[&str]) -> String {
+        let output = Command::new("xcrun")
+            .args(arguments)
+            .output()
+            .expect("locate the macOS Swift compiler and SDK");
+        assert!(output.status.success(), "xcrun failed: {arguments:?}");
+        String::from_utf8(output.stdout)
+            .expect("UTF-8 toolchain path")
+            .trim()
+            .to_owned()
+    }
+    println!("cargo:rerun-if-changed=swift/meeting_capture.swift");
+    println!("cargo:rerun-if-env-changed=SWIFTC");
+    println!("cargo:rerun-if-env-changed=SDKROOT");
+    let compiler = env::var("SWIFTC").unwrap_or_else(|_| xcrun(&["--find", "swiftc"]));
+    let sdk =
+        env::var("SDKROOT").unwrap_or_else(|_| xcrun(&["--sdk", "macosx", "--show-sdk-path"]));
+    let architecture = match env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+        Ok("aarch64") => "arm64",
+        Ok("x86_64") => "x86_64",
+        other => panic!("Unsupported macOS meeting capture architecture: {other:?}"),
+    };
+    let output = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR"));
+    let object = output.join("meeting_capture.o");
+    let library = output.join("libmeeting_capture.a");
+    let status = Command::new(&compiler)
+        .args(["-parse-as-library", "-O", "-target"])
+        .arg(format!("{architecture}-apple-macosx10.15"))
+        .args(["-sdk", &sdk, "-c", "swift/meeting_capture.swift", "-o"])
+        .arg(&object)
+        .status()
+        .expect("compile meeting audio capture bridge");
+    assert!(status.success(), "Swift meeting capture compilation failed");
+    let status = Command::new("libtool")
+        .arg("-static")
+        .arg("-o")
+        .arg(&library)
+        .arg(&object)
+        .status()
+        .expect("archive meeting audio capture bridge");
+    assert!(status.success(), "Meeting capture archive failed");
+    println!("cargo:rustc-link-search=native={}", output.display());
+    println!("cargo:rustc-link-lib=static=meeting_capture");
+    if let Some(toolchain) = PathBuf::from(&compiler).parent().and_then(|p| p.parent()) {
+        println!(
+            "cargo:rustc-link-search=native={}",
+            toolchain.join("lib/swift/macosx").display()
+        );
+    }
+    println!("cargo:rustc-link-search=native={sdk}/usr/lib/swift");
+    println!("cargo:rustc-link-lib=framework=AVFoundation");
+    println!("cargo:rustc-link-lib=framework=CoreMedia");
+    println!("cargo:rustc-link-lib=framework=Foundation");
+    println!("cargo:rustc-link-arg=-Wl,-weak_framework,ScreenCaptureKit");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
 }
 
 /// Link clang's compiler runtime, which provides `__isPlatformVersionAtLeast`.

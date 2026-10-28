@@ -15,7 +15,8 @@
 //! or the host must not use the GPU at all.
 
 use super::protocol::{
-    encode_message, read_message, DeviceInfo, DeviceSelector, LoadedInfo, Request, Response,
+    encode_message, read_message, DeviceInfo, DeviceSelector, DiarizationOutput, LoadedInfo,
+    Request, Response,
 };
 use super::worker::LOG_LINE_PREFIX;
 use super::{CPU_ONLY_FLAG, LOG_LEVEL_ENV, WORKER_FLAG};
@@ -103,6 +104,42 @@ impl Deadlines {
 
 fn ms_to_samples(ms: i64) -> usize {
     (ms.max(0) as usize) * (SAMPLE_RATE as usize / 1000)
+}
+
+/// Run the DIARIZE role in a separate CPU-only process. The user's ASR worker,
+/// stream state, cancellation epoch and loaded model are never touched.
+pub fn diarize_local(
+    path: PathBuf,
+    pcm: &[f32],
+    inspect_only: bool,
+) -> Result<DiarizationOutput, String> {
+    let mut worker = Worker::spawn(true)
+        .map_err(|error| format!("Cannot start local speaker worker: {error}"))?;
+    match worker
+        .call(
+            &Request::Hello {
+                list_devices: false,
+            },
+            None,
+            HELLO_TIMEOUT,
+        )
+        .map_err(|error| error.to_string())?
+    {
+        Response::Hello { .. } => {}
+        other => return Err(unexpected(&other).to_string()),
+    }
+    let deadline = LOAD_TIMEOUT.saturating_add(CPU_DEADLINES.run(pcm.len()));
+    match worker
+        .call(
+            &Request::Diarize { path, inspect_only },
+            Some(pcm),
+            deadline,
+        )
+        .map_err(|error| error.to_string())?
+    {
+        Response::Diarized(output) => Ok(output),
+        other => Err(unexpected(&other).to_string()),
+    }
 }
 
 /// What to load. The supervisor keeps it so a dead worker can be replaced
@@ -1440,6 +1477,7 @@ fn request_name(request: &Request) -> &'static str {
         Request::Hello { .. } => "hello",
         Request::Load { .. } => "model load",
         Request::Run { .. } => "transcription",
+        Request::Diarize { .. } => "speaker identification",
         Request::StreamBegin { .. } => "stream begin",
         Request::Feed => "stream feed",
         Request::Finalize { .. } => "stream finalize",

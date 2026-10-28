@@ -569,7 +569,10 @@ pub struct TranscriptionCoordinator {
 }
 
 pub fn is_transcribe_binding(id: &str) -> bool {
-    id == "transcribe" || id == "transcribe_with_post_process"
+    matches!(
+        id,
+        "transcribe" | "transcribe_with_post_process" | "voice_command"
+    )
 }
 
 impl TranscriptionCoordinator {
@@ -767,6 +770,12 @@ fn stop(app: &AppHandle, binding_id: &str, hotkey_string: &str) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn voice_commands_use_the_serialized_recording_lifecycle() {
+        assert!(super::is_transcribe_binding("voice_command"));
+        assert!(!super::is_transcribe_binding("cancel"));
+    }
+
     use super::*;
 
     #[test]

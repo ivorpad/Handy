@@ -967,6 +967,489 @@ async isLaptop() : Promise<Result<boolean, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async captureDestination(includeText: boolean) : Promise<Result<Destination, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("capture_destination", { includeText }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceGetAutomation() : Promise<Result<AutomationSettings, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_get_automation") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceSaveAutomation(changes: AutomationChanges) : Promise<Result<AutomationSettings, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_save_automation", { changes }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listSnippets() : Promise<Result<Snippet[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_snippets") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveSnippet(id: string | null, trigger: string, expansion: string, enabled: boolean, expectedRevision: number | null) : Promise<Result<Snippet, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_snippet", { id, trigger, expansion, enabled, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteSnippet(id: string, expectedRevision: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_snippet", { id, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listLearnedHints() : Promise<Result<LearnedHint[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_learned_hints") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async proposeCorrection(historyId: number, editedText: string) : Promise<Result<CorrectionProposal, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("propose_correction", { historyId, editedText }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async confirmCorrection(proposalId: string, replacement: boolean) : Promise<Result<LearningReceipt, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("confirm_correction", { proposalId, replacement }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async updateLearnedHint(id: string, word: string, wrong: string | null, expectedRevision: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_learned_hint", { id, word, wrong, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteLearnedHint(id: string, expectedRevision: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_learned_hint", { id, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async undoCorrection(undoToken: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("undo_correction", { undoToken }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async reviewBackgroundLearning(id: string, expectedRevision: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("review_background_learning", { id, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listWritingProfiles() : Promise<Result<WritingProfile[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_writing_profiles") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveWritingProfile(profile: WritingProfile) : Promise<Result<WritingProfile, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_writing_profile", { profile }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteWritingProfile(id: string, revision: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_writing_profile", { id, revision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async resolveWritingProfile(destination: Destination) : Promise<Result<WritingProfile | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("resolve_writing_profile", { destination }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getWritingProfileOverride() : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_writing_profile_override") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async setWritingProfileOverride(profileId: string | null) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_writing_profile_override", { profileId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async listWritingPreferences() : Promise<Result<WritingPreference[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_writing_preferences") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveWritingPreference(preference: WritingPreference) : Promise<Result<WritingPreference, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_writing_preference", { preference }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteWritingPreference(id: string, revision: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_writing_preference", { id, revision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceCaptureCommand() : Promise<Result<CommandRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_capture_command") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceRunCommand(id: string, instruction: string) : Promise<Result<CommandRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_run_command", { id, instruction }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceApplyCommand(id: string) : Promise<Result<CommandRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_apply_command", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceCancelCommand(id: string) : Promise<Result<CommandRecord, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_cancel_command", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceListCommands() : Promise<Result<CommandRecord[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_list_commands") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceListNotes(query: string | null) : Promise<Result<NoteSummary[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_list_notes", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceGetNote(id: string) : Promise<Result<Note, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_get_note", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceSaveNote(request: NoteSaveRequest) : Promise<Result<Note, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_save_note", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceDeleteNote(noteId: string, expectedRevision: number) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_delete_note", { noteId, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceNoteVersions(noteId: string) : Promise<Result<NoteVersion[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_note_versions", { noteId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceRestoreNote(noteId: string, revision: number, expectedRevision: number) : Promise<Result<Note, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_restore_note", { noteId, revision, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceNoteTransform(noteId: string, expectedRevision: number, promptId: string | null, instruction: string) : Promise<Result<NoteGeneratedDraft, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_note_transform", { noteId, expectedRevision, promptId, instruction }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceNoteChat(noteId: string, expectedRevision: number, message: string) : Promise<Result<NoteMessage[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_note_chat", { noteId, expectedRevision, message }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceNoteMessages(noteId: string) : Promise<Result<NoteMessage[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_note_messages", { noteId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceImportNote(title: string, markdown: string) : Promise<Result<Note, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_import_note", { title, markdown }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceExportNote(noteId: string) : Promise<Result<NoteMarkdownExport, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_export_note", { noteId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingCapabilities() : Promise<CaptureCapabilities> {
+    return await TAURI_INVOKE("meeting_capabilities");
+},
+async meetingList() : Promise<Result<Meeting[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingStart(title: string, microphone: boolean, systemAudio: boolean) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_start", { title, microphone, systemAudio }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingStop(id: string) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_stop", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingImport(path: string, title: string) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_import", { path, title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingTranscribe(id: string) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_transcribe", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingIdentifySpeakers(id: string) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_identify_speakers", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingRenameSpeaker(id: string, speakerId: string, label: string, expectedRevision: number) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_rename_speaker", { id, speakerId, label, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingMergeSpeakers(id: string, fromId: string, intoId: string, expectedRevision: number) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_merge_speakers", { id, fromId, intoId, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingCorrectSegment(id: string, segmentId: string, speakerId: string | null, text: string, expectedRevision: number) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_correct_segment", { id, segmentId, speakerId, text, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingAddParticipant(id: string, label: string, expectedRevision: number) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_add_participant", { id, label, expectedRevision }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingSpeakerModel() : Promise<Result<SpeakerModelConfig, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_speaker_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingSetSpeakerModel(path: string) : Promise<Result<SpeakerModelConfig, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_set_speaker_model", { path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingDownloadSpeakerModel() : Promise<Result<SpeakerModelConfig, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_download_speaker_model") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingSummarize(id: string) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_summarize", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingConfirmAction(id: string, actionId: string) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_confirm_action", { id, actionId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async meetingSetActionDone(id: string, actionId: string, done: boolean) : Promise<Result<Meeting, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("meeting_set_action_done", { id, actionId, done }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceListConnectors() : Promise<Result<Connector[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_list_connectors") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceSaveConnector(input: ConnectorInput) : Promise<Result<Connector, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_save_connector", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceSyncConnector(id: string) : Promise<Result<Connector, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_sync_connector", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceDisconnectConnector(id: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_disconnect_connector", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceSearch(query: string) : Promise<Result<SearchSource[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_search", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async workspaceAnswerSearch(query: string) : Promise<Result<SearchAnswer, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("workspace_answer_search", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -1074,8 +1557,11 @@ long_form_chunking?: boolean;
 overlay_style?: OverlayStyle }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
+export type AutomationChanges = { background_learning: boolean | null; automatic_commands: boolean | null }
+export type AutomationSettings = { background_learning: boolean; automatic_commands: boolean }
 export type AvailableAccelerators = { transcribe: string[]; gpu_devices: GpuDeviceOption[] }
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
+export type CaptureCapabilities = { microphone: boolean; system_audio: boolean; reason: string | null }
 /**
  * Script applied to Mandarin and Cantonese output. Traditional carries its region
  * (Taiwan vs Hong Kong forms, e.g. 裡/裏) rather than guessing it.
@@ -1094,7 +1580,12 @@ export type ChineseScript =
  */
 "traditional_hk"
 export type ClipboardHandling = "dont_modify" | "copy_to_clipboard"
+export type CommandRecord = { id: string; destination: string; original: string; instruction: string; source_transcript: string | null; result: string | null; status: string; error: string | null; revision: number; created_at: number }
+export type Connector = { id: string; kind: string; name: string; source: string; status: string; last_synced_at: number | null; last_error: string | null; revision: number; document_count: number }
+export type ConnectorInput = { name: string; kind: string; source: string }
+export type CorrectionProposal = { id: string; before: string; after: string }
 export type CustomSounds = { start: boolean; stop: boolean }
+export type Destination = { app_id: string; app_name: string; domain: string | null; selected_text: string | null; token: string; captured_at: number; context_available: boolean; unavailable_reason: string | null }
 export type GpuDeviceOption = { id: string; name: string; total_vram_mb: number }
 export type HistoryEntry = { id: number; file_name: string; timestamp: number; saved: boolean; title: string; transcription_text: string; post_processed_text: string | null; post_process_prompt: string | null; post_process_requested: boolean }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
@@ -1113,7 +1604,14 @@ export type KeyboardDiagnosticReport = { secure_input_enabled: boolean; culprit_
 key_down: number; key_up: number; flags_changed: number; mouse: number; duration_ms: number }
 export type KeyboardImplementation = "tauri" | "handy_keys"
 export type LLMPrompt = { id: string; name: string; prompt: string }
+export type LearnedHint = { id: string; word: string; wrong: string | null; revision: number; origin: string; reviewed: boolean; undo_token: string | null }
+export type LearningReceipt = { hint: LearnedHint; undo_token: string }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
+export type Meeting = { id: string; title: string; status: string; created_at: number; transcript: string; summary: string; actions: MeetingAction[]; error: string | null; sources: string[]; revision: number; timeline: MeetingTimeline }
+export type MeetingAction = { id: string; text: string; owner: string | null; due: string | null; confirmed: boolean; done: boolean }
+export type MeetingParticipant = { id: string; label: string }
+export type MeetingSegment = { id: string; start_ms: number; end_ms: number; speaker_id: string | null; model_speaker_id?: string | null; model_speaker_ids?: string[]; text: string; confidence: number | null; overlap: boolean; corrected: boolean }
+export type MeetingTimeline = { segments: MeetingSegment[]; participants: MeetingParticipant[]; alignment: string; max_speakers: number | null; model: string | null; notes_stale?: boolean }
 export type ModelInfo = { id: string; name: string; description: string; filename: string; source: ModelSource; size_mb: number; is_downloaded: boolean; is_downloading: boolean; partial_size: number; accuracy_score: number; speed_score: number; supports_translation: boolean; is_recommended: boolean; supported_languages: string[]; supports_language_selection: boolean; is_custom: boolean; supports_streaming: boolean; supports_language_detection: boolean }
 export type ModelLoadStatus = { is_loaded: boolean; current_model: string | null }
 /**
@@ -1141,6 +1639,13 @@ sha256: string | null } } |
  */
 "Local"
 export type ModelUnloadTimeout = "never" | "immediately" | "min_2" | "min_5" | "min_10" | "min_15" | "hour_1" | "sec_15"
+export type Note = { id: string; title: string; content: string; revision: number; created_at: number; updated_at: number }
+export type NoteGeneratedDraft = { note_id: string; based_on_revision: number; content: string }
+export type NoteMarkdownExport = { filename: string; markdown: string }
+export type NoteMessage = { id: string; note_id: string; role: string; content: string; note_revision: number; created_at: number }
+export type NoteSaveRequest = { id: string | null; expected_revision: number | null; title: string; content: string; source: string }
+export type NoteSummary = { id: string; title: string; preview: string; revision: number; updated_at: number }
+export type NoteVersion = { note_id: string; revision: number; title: string; content: string; source: string; created_at: number }
 export type OverlayPosition = "top" | "bottom"
 /**
  * Which recording overlay to display. `Minimal` and `Live` share one base
@@ -1193,6 +1698,8 @@ export type RecordingStateEvent = { phase: RecordingPhase }
  * A retired ONNX model found on disk.
  */
 export type RetiredModel = { id: string; name: string; size_mb: number; replacement_repo: string }
+export type SearchAnswer = { answer: string; sources: SearchSource[] }
+export type SearchSource = { id: string; kind: string; title: string; text: string; updated_at: number }
 export type SecretMap = Partial<{ [key in string]: string }>
 export type SecureInputStatus = { 
 /**
@@ -1245,7 +1752,9 @@ export type ShortcutActivation =
  */
 "hold_or_toggle"
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
+export type Snippet = { id: string; trigger: string; expansion: string; enabled: boolean; revision: number }
 export type SoundTheme = "marimba" | "pop" | "custom"
+export type SpeakerModelConfig = { path: string | null; available: boolean; download_bytes: number; download_url: string }
 /**
  * Phase of the streaming overlay card, emitted to drive its UI state.
  */
@@ -1311,6 +1820,8 @@ export type TranscriptionOutcome =
 export type TypingTool = "auto" | "wtype" | "kwtype" | "dotool" | "ydotool" | "xdotool"
 export type VadBackend = "silero" | "earshot"
 export type WindowsMicrophonePermissionStatus = { supported: boolean; overall_access: PermissionAccess; device_access: PermissionAccess; app_access: PermissionAccess; desktop_app_access: PermissionAccess }
+export type WritingPreference = { id: string; text: string; app_id: string | null; domain: string | null; language: string | null; enabled: boolean; revision: number; created_at: number; updated_at: number }
+export type WritingProfile = { id: string; name: string; app_id: string | null; domain: string | null; prompt_id: string | null; cleanup_level: string; priority: number; enabled: boolean; revision: number; created_at: number; updated_at: number }
 
 /** tauri-specta globals **/
 

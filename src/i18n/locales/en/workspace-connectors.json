@@ -1,0 +1,34 @@
+{
+  "title": "Connections",
+  "description": "Import selected local files into local search. Sources are read-only and never contact remote services. Disconnecting removes their cached content.",
+  "name": "Name",
+  "type": "Source type",
+  "path": "Local path",
+  "choose": "Choose source",
+  "localLimits": "UTF-8 .txt and Markdown files only. Folders include up to 50 files, three subfolder levels and 1 MB total. Symbolic links are excluded.",
+  "calendarLimits": "Import up to 200 events from a local ICS file. Dates retain their calendar timezone notation. Recurrences are not expanded. This does not connect a calendar account.",
+  "calendarFiles": "ICS calendars",
+  "textFiles": "Text and Markdown",
+  "add": "Add connection",
+  "sync": "Sync now",
+  "disconnect": "Disconnect and remove cache",
+  "empty": "No connections yet.",
+  "working": "Working…",
+  "documents_one": "{{count}} document",
+  "documents_other": "{{count}} documents",
+  "lastSync": "Last successful sync: {{date}}",
+  "stale": "Showing cached content from the last successful sync.",
+  "remoteDisabled": "This remote connection is disabled in the local-only workspace. Previously cached content remains available locally until you disconnect.",
+  "kinds": {
+    "local_file": "Local text file",
+    "local_folder": "Local text folder",
+    "calendar": "ICS calendar import"
+  },
+  "status": {
+    "idle": "Not synced",
+    "syncing": "Syncing",
+    "ready": "Synced",
+    "error": "Sync failed",
+    "disabled": "Disabled (local sources only)"
+  }
+}

@@ -194,6 +194,10 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
     );
     headers.insert("X-Title", HeaderValue::from_static("Handy"));
 
+    if provider.api_format == PostProcessApiFormat::Anthropic {
+        headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
+    }
+
     // Provider-specific auth headers
     if !api_key.is_empty() {
         if provider.api_format == PostProcessApiFormat::Anthropic {
@@ -202,7 +206,6 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
                 HeaderValue::from_str(api_key)
                     .map_err(|e| format!("Invalid API key header value: {}", e))?,
             );
-            headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
         } else {
             headers.insert(
                 AUTHORIZATION,
@@ -217,8 +220,9 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
 
 /// Create an HTTP client with provider-specific headers
 fn create_client(provider: &PostProcessProvider, api_key: &str) -> Result<reqwest::Client, String> {
+    let builder = crate::workspace::generation::local_client_builder(&provider.base_url)?;
     let headers = build_headers(provider, api_key)?;
-    reqwest::Client::builder()
+    builder
         .default_headers(headers)
         .build()
         .map_err(|e| report_reqwest_error("Failed to build HTTP client", &e))
@@ -657,6 +661,12 @@ mod tests {
     use std::fmt;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    #[test]
+    fn dictation_and_model_listing_clients_reject_cloud_endpoints() {
+        assert!(create_client(&provider("openai", "https://api.openai.com/v1"), "").is_err());
+        assert!(create_client(&provider("custom", "http://127.0.0.1:11434/v1"), "").is_ok());
+    }
+
     #[derive(Debug)]
     struct TestError {
         message: &'static str,
@@ -874,6 +884,12 @@ mod tests {
         assert_eq!(headers["x-api-key"], "key");
         assert_eq!(headers["anthropic-version"], "2023-06-01");
         assert!(headers.get(AUTHORIZATION).is_none());
+
+        let keyless =
+            build_headers(&anthropic_format_provider("http://127.0.0.1:8080/v1"), "").unwrap();
+        assert_eq!(keyless["anthropic-version"], "2023-06-01");
+        assert!(keyless.get("x-api-key").is_none());
+        assert!(keyless.get(AUTHORIZATION).is_none());
 
         let headers =
             build_headers(&provider("custom", "http://localhost:11434/v1"), "key").unwrap();

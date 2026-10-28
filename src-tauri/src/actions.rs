@@ -14,6 +14,9 @@ use crate::tray::{set_tray_state, TrayIconState};
 use crate::utils::{
     self, show_processing_overlay, show_recording_overlay, show_transcribing_overlay,
 };
+use crate::workspace::{
+    automation, command_classifier, context, learning, personalization, profiles, voice_commands,
+};
 use crate::TranscriptionCoordinator;
 use log::{debug, error, warn};
 use once_cell::sync::Lazy;
@@ -22,7 +25,7 @@ use specta::Type;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::Manager;
 use tauri::{AppHandle, Emitter};
@@ -90,10 +93,15 @@ struct RecordingErrorEvent {
 
 /// Drop guard that finishes the transcription pipeline, including immediate
 /// model unloading on early exits.
-struct FinishGuard(AppHandle, Arc<TranscriptionManager>);
+struct FinishGuard(AppHandle, Arc<TranscriptionManager>, Option<u64>);
 impl Drop for FinishGuard {
     fn drop(&mut self) {
         self.1.maybe_unload_immediately("transcription session");
+        // Keep meetings/imported audio excluded until this worker and its
+        // immediate unload have finished. Release before draining queued input.
+        if let Some(token) = self.2.take() {
+            crate::workspace::meeting_capture::release_dictation(token);
+        }
         if let Some(c) = self.0.try_state::<TranscriptionCoordinator>() {
             c.notify_processing_finished();
         }
@@ -113,6 +121,121 @@ pub trait ShortcutAction: Send + Sync {
 // Transcribe Action
 struct TranscribeAction {
     post_process: bool,
+    command_mode: bool,
+}
+
+struct RecordingWorkspace {
+    settings: AppSettings,
+    post_process: bool,
+    command_id: Option<String>,
+    automatic_target: Option<context::Destination>,
+    background_learning: bool,
+}
+
+struct RecordedCommandGuard(AppHandle, Option<String>);
+impl Drop for RecordedCommandGuard {
+    fn drop(&mut self) {
+        if let Some(id) = &self.1 {
+            voice_commands::finish_recording(&self.0, id);
+        }
+    }
+}
+
+static RECORDING_WORKSPACES: Lazy<Mutex<HashMap<String, RecordingWorkspace>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+static DICTATION_RESERVATION: Lazy<Mutex<Option<u64>>> = Lazy::new(|| Mutex::new(None));
+
+fn release_current_dictation() {
+    if let Ok(mut token) = DICTATION_RESERVATION.lock() {
+        if let Some(token) = token.take() {
+            crate::workspace::meeting_capture::release_dictation(token);
+        }
+    }
+}
+
+pub(crate) fn cancel_workspace_recording(app: &AppHandle) {
+    release_current_dictation();
+    voice_commands::cancel_recording(app);
+    learning::cancel();
+    if let Ok(mut contexts) = RECORDING_WORKSPACES.lock() {
+        contexts.clear();
+    }
+}
+
+fn pipeline_settings(
+    app: &AppHandle,
+    post_process: bool,
+    destination: Option<&context::Destination>,
+) -> (AppSettings, bool) {
+    let settings = get_settings(app);
+    // Retrying audio uses only global rules, never the app focused during retry.
+    let fallback = context::Destination {
+        app_id: String::new(),
+        app_name: String::new(),
+        domain: None,
+        selected_text: None,
+        token: String::new(),
+        captured_at: 0,
+        context_available: false,
+        unavailable_reason: None,
+    };
+    let destination = destination.unwrap_or(&fallback);
+    let profile = profiles::resolve(app, destination).unwrap_or_else(|error| {
+        warn!("Profile lookup failed: {}", error);
+        None
+    });
+    let preferences =
+        profiles::preferences_for(app, destination, Some(&settings.selected_language))
+            .unwrap_or_else(|error| {
+                warn!("Writing preference lookup failed: {}", error);
+                Vec::new()
+            });
+    configured_pipeline(settings, post_process, profile, preferences)
+}
+
+fn configured_pipeline(
+    mut settings: AppSettings,
+    post_process: bool,
+    profile: Option<profiles::WritingProfile>,
+    preferences: Vec<profiles::WritingPreference>,
+) -> (AppSettings, bool) {
+    let mut enabled = post_process;
+    let mut cleanup = "inherit";
+    if let Some(profile) = &profile {
+        cleanup = &profile.cleanup_level;
+        if let Some(id) = &profile.prompt_id {
+            settings.post_process_selected_prompt_id = Some(id.clone());
+            enabled = true;
+        }
+        match cleanup {
+            "none" => enabled = false,
+            "light" | "medium" => enabled = true,
+            _ => {}
+        }
+    }
+    if enabled {
+        let mut prompt = settings.post_process_selected_prompt_id.as_ref().and_then(|id| settings.post_process_prompts.iter().find(|p| &p.id == id)).map(|p| p.prompt.clone()).unwrap_or_else(|| "Clean up the transcription while preserving its meaning. Return only the text.\n${output}".into());
+        match cleanup {
+            "light" => prompt.push_str("\nLimit changes to punctuation, capitalization, and obvious transcription errors. Preserve the speaker's wording."),
+            "medium" => prompt.push_str("\nRemove filler words and false starts. Repair grammar while preserving meaning and tone."),
+            _ => {}
+        }
+        for preference in preferences {
+            prompt.push_str("\nWriting preference: ");
+            prompt.push_str(&preference.text);
+        }
+        prompt.push_str("\nPreserve every ⟦HANDY_*⟧ placeholder exactly once and unchanged. They represent literal text and must not be edited.");
+        let id = "workspace-recording-snapshot".to_string();
+        settings
+            .post_process_prompts
+            .push(crate::settings::LLMPrompt {
+                id: id.clone(),
+                name: "Recording snapshot".into(),
+                prompt,
+            });
+        settings.post_process_selected_prompt_id = Some(id);
+    }
+    (settings, enabled)
 }
 
 /// Field name for structured output JSON schema
@@ -412,14 +535,34 @@ pub(crate) async fn process_transcription_output(
     transcription: &str,
     post_process: bool,
 ) -> ProcessedTranscription {
-    let settings = get_settings(app);
-    let mut final_text = transcription.to_string();
+    let (settings, enabled) = pipeline_settings(app, post_process, None);
+    process_transcription_snapshot(app, transcription, &settings, enabled).await
+}
+
+async fn process_transcription_snapshot(
+    app: &AppHandle,
+    transcription: &str,
+    settings: &AppSettings,
+    post_process: bool,
+) -> ProcessedTranscription {
+    let corrected =
+        personalization::apply_replacements(app, transcription).unwrap_or_else(|error| {
+            warn!("Confirmed correction lookup failed: {}", error);
+            transcription.to_owned()
+        });
+    let protected = personalization::protect_snippets(app, &corrected);
+    let mut final_text = protected
+        .as_ref()
+        .map(|p| p.text.clone())
+        .unwrap_or_else(|error| {
+            warn!("Snippet expansion failed: {}", error);
+            corrected.clone()
+        });
     let mut post_processed_text: Option<String> = None;
     let mut post_process_prompt: Option<String> = None;
 
     if post_process {
-        if let Some(processed_text) = post_process_transcription(&settings, &final_text).await {
-            post_processed_text = Some(processed_text.clone());
+        if let Some(processed_text) = post_process_transcription(settings, &final_text).await {
             final_text = processed_text;
 
             if let Some(prompt_id) = &settings.post_process_selected_prompt_id {
@@ -434,6 +577,17 @@ pub(crate) async fn process_transcription_output(
         }
     }
 
+    if let Ok(protected) = protected {
+        final_text =
+            personalization::restore_snippets(&protected, &final_text).unwrap_or_else(|error| {
+                warn!("Cleanup changed literal snippet markers: {}", error);
+                personalization::fallback_expansion(&protected)
+            });
+    }
+    if post_process_prompt.is_some() || final_text != transcription {
+        post_processed_text = Some(final_text.clone());
+    }
+
     ProcessedTranscription {
         final_text,
         post_processed_text,
@@ -445,6 +599,24 @@ impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
+
+        // Reserve before touching the shared speech engine. A rejected shortcut
+        // must not initiate a model load during meeting transcription.
+        let token = match crate::workspace::meeting_capture::try_reserve_dictation() {
+            Ok(token) => token,
+            Err(error) => {
+                let _ = app.emit("transcription-error", error);
+                return;
+            }
+        };
+        if let Ok(mut reservation) = DICTATION_RESERVATION.lock() {
+            *reservation = Some(token);
+        } else {
+            crate::workspace::meeting_capture::release_dictation(token);
+            return;
+        }
+        RECORDING_SESSION.fetch_add(1, Ordering::SeqCst);
+        learning::cancel();
 
         // Load model in the background
         let tm = app.state::<Arc<TranscriptionManager>>();
@@ -470,12 +642,63 @@ impl ShortcutAction for TranscribeAction {
                 .get_model_path(&selected_model)
             {
                 warn!("Not starting recording: no model can transcribe it ({})", e);
+                release_current_dictation();
                 return;
             }
         }
 
+        let command_id = if self.command_mode {
+            match voice_commands::begin_recording(app) {
+                Ok(id) => Some(id),
+                Err(error) => {
+                    release_current_dictation();
+                    let _ = app.emit("transcription-error", error);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+        let automation = automation::settings(app).ok();
+        let automatic_commands = !self.command_mode
+            && automation
+                .as_ref()
+                .is_some_and(|settings| settings.automatic_commands);
+        let destination = context::capture(automatic_commands).ok();
+        let automatic_target = destination
+            .as_ref()
+            .filter(|target| {
+                automatic_commands
+                    && target.context_available
+                    && target
+                        .selected_text
+                        .as_ref()
+                        .is_some_and(|text| !text.trim().is_empty())
+            })
+            .cloned();
+        let background_learning = automation
+            .as_ref()
+            .is_some_and(|settings| settings.background_learning);
+        let (snapshot_settings, snapshot_post_process) =
+            pipeline_settings(app, self.post_process, destination.as_ref());
+        if let Ok(mut workspaces) = RECORDING_WORKSPACES.lock() {
+            workspaces.insert(
+                binding_id.to_owned(),
+                RecordingWorkspace {
+                    settings: snapshot_settings,
+                    post_process: snapshot_post_process,
+                    command_id,
+                    automatic_target,
+                    background_learning,
+                },
+            );
+        } else {
+            release_current_dictation();
+            voice_commands::cancel_recording(app);
+            let _ = app.emit("transcription-error", "Recording context is unavailable.");
+            return;
+        }
         let binding_id = binding_id.to_string();
-        RECORDING_SESSION.fetch_add(1, Ordering::SeqCst);
         let tray_started = Instant::now();
         set_tray_state(app, TrayIconState::Recording);
         let tray_elapsed = tray_started.elapsed();
@@ -600,6 +823,11 @@ impl ShortcutAction for TranscribeAction {
             // Starting failed (for example due to blocked microphone permissions).
             // Revert UI state so we don't stay stuck in the recording overlay.
             tm.cancel_stream();
+            release_current_dictation();
+            voice_commands::cancel_recording(app);
+            if let Ok(mut workspaces) = RECORDING_WORKSPACES.lock() {
+                workspaces.remove(&binding_id);
+            }
             utils::hide_recording_overlay(app);
             set_tray_state(app, TrayIconState::Idle);
             if let Some(err) = recording_error {
@@ -658,18 +886,37 @@ impl ShortcutAction for TranscribeAction {
         play_feedback_sound(app, SoundType::Stop);
 
         let binding_id = binding_id.to_string(); // Clone binding_id for the async task
-        let post_process = self.post_process;
+        let command_mode = self.command_mode;
+        let workspace = RECORDING_WORKSPACES
+            .lock()
+            .ok()
+            .and_then(|mut contexts| contexts.remove(&binding_id));
+        let post_process = workspace
+            .as_ref()
+            .map(|context| context.post_process)
+            .unwrap_or(self.post_process);
+        let reservation = DICTATION_RESERVATION
+            .lock()
+            .ok()
+            .and_then(|mut token| token.take());
         let cancel_generation = rm.cancel_generation();
 
         tauri::async_runtime::spawn(async move {
-            let _guard = FinishGuard(ah.clone(), Arc::clone(&tm));
+            let _guard = FinishGuard(ah.clone(), Arc::clone(&tm), reservation);
+            let _command_guard = RecordedCommandGuard(
+                ah.clone(),
+                workspace
+                    .as_ref()
+                    .and_then(|context| context.command_id.clone()),
+            );
             debug!(
                 "Starting async transcription task for binding: {}",
                 binding_id
             );
 
             let stop_recording_time = Instant::now();
-            if let Some(samples) = rm.stop_recording(&binding_id, cancel_generation) {
+            let samples = rm.stop_recording(&binding_id, cancel_generation);
+            if let Some(samples) = samples {
                 // Read now: by the time transcribing ends, another take may
                 // have replaced it.
                 let input_silent = rm.last_input_silent();
@@ -752,6 +999,98 @@ impl ShortcutAction for TranscribeAction {
                                 utils::redact_text(&transcription)
                             );
 
+                            let automatic_intent = workspace
+                                .as_ref()
+                                .and_then(|workspace| workspace.automatic_target.as_ref())
+                                .and_then(|target| {
+                                    command_classifier::classify_selected(
+                                        automation::settings(&ah)
+                                            .is_ok_and(|settings| settings.automatic_commands),
+                                        target.selected_text.as_deref(),
+                                        &transcription,
+                                    )
+                                });
+                            if command_mode || automatic_intent.is_some() {
+                                let mut canonical_instruction = None;
+                                let id = if command_mode {
+                                    workspace
+                                        .as_ref()
+                                        .and_then(|context| context.command_id.clone())
+                                } else if let (Some(target), Some(intent)) = (
+                                    workspace
+                                        .as_ref()
+                                        .and_then(|context| context.automatic_target.clone()),
+                                    automatic_intent,
+                                ) {
+                                    canonical_instruction = Some(intent.instruction);
+                                    match voice_commands::begin_automatic(&ah, target) {
+                                        Ok(id) => Some(id),
+                                        Err(error) => {
+                                            let _ = ah.emit("transcription-error", error);
+                                            if wav_saved {
+                                                if let Err(error) = hm.save_entry(
+                                                    file_name.clone(),
+                                                    transcription.clone(),
+                                                    false,
+                                                    None,
+                                                    None,
+                                                ) {
+                                                    error!("Failed to preserve command speech in history: {}",error);
+                                                }
+                                            }
+                                            None
+                                        }
+                                    }
+                                } else {
+                                    None
+                                };
+                                let Some(id) = id else {
+                                    utils::hide_recording_overlay(&ah);
+                                    set_tray_state(&ah, TrayIconState::Idle);
+                                    return;
+                                };
+                                let _automatic_command_guard =
+                                    RecordedCommandGuard(ah.clone(), Some(id.clone()));
+                                let result = complete_unless_cancelled(
+                                    async {
+                                        if let Some(instruction) = canonical_instruction.as_deref()
+                                        {
+                                            voice_commands::complete_recording_with_transcript(
+                                                &ah,
+                                                &id,
+                                                &transcription,
+                                                instruction,
+                                            )
+                                            .await
+                                        } else {
+                                            voice_commands::complete_recording(
+                                                &ah,
+                                                &id,
+                                                &transcription,
+                                            )
+                                            .await
+                                        }
+                                    },
+                                    || rm.was_cancelled_since(cancel_generation),
+                                )
+                                .await;
+                                match result {
+                                    Some(Ok(_)) => {}
+                                    Some(Err(error)) => {
+                                        let _ = ah.emit("transcription-error", error);
+                                    }
+                                    None => {
+                                        let _ = voice_commands::workspace_cancel_command(
+                                            ah.clone(),
+                                            id.clone(),
+                                        );
+                                    }
+                                }
+                                utils::hide_recording_overlay(&ah);
+                                set_tray_state(&ah, TrayIconState::Idle);
+                                return;
+                            }
+
                             if post_process {
                                 if use_streaming_overlay {
                                     tm.emit_stream_working(StreamWorkKind::Polishing);
@@ -760,7 +1099,24 @@ impl ShortcutAction for TranscribeAction {
                                 }
                             }
                             let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(&ah, &transcription, post_process),
+                                async {
+                                    if let Some(workspace) = &workspace {
+                                        process_transcription_snapshot(
+                                            &ah,
+                                            &transcription,
+                                            &workspace.settings,
+                                            workspace.post_process,
+                                        )
+                                        .await
+                                    } else {
+                                        process_transcription_output(
+                                            &ah,
+                                            &transcription,
+                                            post_process,
+                                        )
+                                        .await
+                                    }
+                                },
                                 || rm.was_cancelled_since(cancel_generation),
                             )
                             .await
@@ -804,6 +1160,9 @@ impl ShortcutAction for TranscribeAction {
                                 let ah_clone = ah.clone();
                                 let paste_time = Instant::now();
                                 let final_text = processed.final_text;
+                                let background_learning = workspace
+                                    .as_ref()
+                                    .is_some_and(|context| context.background_learning);
                                 let rm_for_paste = Arc::clone(&rm);
                                 // Taken before the paste thread exists, and so
                                 // before the next session can start.
@@ -822,6 +1181,23 @@ impl ShortcutAction for TranscribeAction {
                                             return;
                                         }
 
+                                        let observation = if background_learning
+                                            && automation::settings(&ah_clone)
+                                                .is_ok_and(|settings| settings.background_learning)
+                                        {
+                                            context::capture_learning().ok()
+                                        } else {
+                                            None
+                                        };
+                                        if rm_for_paste.was_cancelled_since(cancel_generation)
+                                            || RECORDING_SESSION.load(Ordering::SeqCst) != session
+                                        {
+                                            if let Some(observation) = observation {
+                                                context::discard_learning(&observation);
+                                            }
+                                            return;
+                                        }
+                                        let inserted_text = final_text.clone();
                                         let outcome =
                                             match utils::paste(final_text, ah_clone.clone()) {
                                                 Ok(()) => {
@@ -829,9 +1205,28 @@ impl ShortcutAction for TranscribeAction {
                                                         "Text pasted successfully in {:?}",
                                                         paste_time.elapsed()
                                                     );
+                                                    if let Some(observation) = observation {
+                                                        if !rm_for_paste
+                                                            .was_cancelled_since(cancel_generation)
+                                                            && RECORDING_SESSION
+                                                                .load(Ordering::SeqCst)
+                                                                == session
+                                                        {
+                                                            learning::begin(
+                                                                &ah_clone,
+                                                                observation,
+                                                                inserted_text,
+                                                            );
+                                                        } else {
+                                                            context::discard_learning(&observation);
+                                                        }
+                                                    }
                                                     TranscriptionOutcome::Typed
                                                 }
                                                 Err(e) => {
+                                                    if let Some(observation) = observation {
+                                                        context::discard_learning(&observation);
+                                                    }
                                                     error!("Failed to paste transcription: {}", e);
                                                     let _ = ah_clone.emit("paste-error", ());
                                                     TranscriptionOutcome::Failed
@@ -963,11 +1358,22 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
         "transcribe".to_string(),
         Arc::new(TranscribeAction {
             post_process: false,
+            command_mode: false,
         }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "transcribe_with_post_process".to_string(),
-        Arc::new(TranscribeAction { post_process: true }) as Arc<dyn ShortcutAction>,
+        Arc::new(TranscribeAction {
+            post_process: true,
+            command_mode: false,
+        }) as Arc<dyn ShortcutAction>,
+    );
+    map.insert(
+        "voice_command".to_string(),
+        Arc::new(TranscribeAction {
+            post_process: false,
+            command_mode: true,
+        }) as Arc<dyn ShortcutAction>,
     );
     map.insert(
         "cancel".to_string(),
@@ -983,8 +1389,8 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod tests {
     use super::{
-        complete_unless_cancelled, is_blank_transcription, should_use_streaming_overlay,
-        strip_think_block,
+        complete_unless_cancelled, configured_pipeline, is_blank_transcription,
+        should_use_streaming_overlay, strip_think_block,
     };
     use crate::settings::OverlayStyle;
     use std::future;
@@ -992,6 +1398,87 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
     use std::time::Duration;
+
+    fn profile(cleanup: &str) -> crate::workspace::profiles::WritingProfile {
+        crate::workspace::profiles::WritingProfile {
+            id: "profile".into(),
+            name: "Profile".into(),
+            app_id: None,
+            domain: None,
+            prompt_id: Some("chosen".into()),
+            cleanup_level: cleanup.into(),
+            priority: 0,
+            enabled: true,
+            revision: 1,
+            created_at: 1,
+            updated_at: 1,
+        }
+    }
+
+    #[test]
+    fn profile_none_disables_cleanup_even_with_prompt_and_shortcut() {
+        let (settings, enabled) = configured_pipeline(
+            crate::settings::get_default_settings(),
+            true,
+            Some(profile("none")),
+            Vec::new(),
+        );
+        assert!(!enabled);
+        assert_eq!(
+            settings.post_process_selected_prompt_id.as_deref(),
+            Some("chosen")
+        );
+        assert!(!settings
+            .post_process_prompts
+            .iter()
+            .any(|p| p.id == "workspace-recording-snapshot"));
+    }
+
+    #[test]
+    fn profile_snapshot_combines_prompt_cleanup_and_preferences_without_changing_saved_settings() {
+        let mut settings = crate::settings::get_default_settings();
+        settings
+            .post_process_prompts
+            .push(crate::settings::LLMPrompt {
+                id: "chosen".into(),
+                name: "Chosen".into(),
+                prompt: "Use short sentences. ${output}".into(),
+            });
+        let preference = crate::workspace::profiles::WritingPreference {
+            id: "preference".into(),
+            text: "Use British spelling.".into(),
+            app_id: None,
+            domain: None,
+            language: Some("en".into()),
+            enabled: true,
+            revision: 1,
+            created_at: 1,
+            updated_at: 1,
+        };
+        let original_count = settings.post_process_prompts.len();
+        let (snapshot, enabled) = configured_pipeline(
+            settings.clone(),
+            false,
+            Some(profile("light")),
+            vec![preference],
+        );
+        assert!(enabled);
+        let id = snapshot
+            .post_process_selected_prompt_id
+            .as_ref()
+            .expect("snapshot prompt");
+        let prompt = &snapshot
+            .post_process_prompts
+            .iter()
+            .find(|p| &p.id == id)
+            .expect("prompt")
+            .prompt;
+        assert!(prompt.contains("Use short sentences."));
+        assert!(prompt.contains("Preserve the speaker's wording."));
+        assert!(prompt.contains("Use British spelling."));
+        assert!(prompt.contains("⟦HANDY_*⟧"));
+        assert_eq!(settings.post_process_prompts.len(), original_count);
+    }
 
     #[test]
     fn blank_transcription_is_detected() {
